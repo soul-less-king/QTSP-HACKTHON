@@ -79,7 +79,8 @@ model Room {
   createdAt               DateTime   @default(now()) @map("created_at")
   updatedAt               DateTime   @updatedAt @map("updated_at")
 
-  bookings Booking[]
+  bookings            Booking[]
+  eventRoomSelections EventRoomSelection[]
 
   @@index([floorNumber])
   @@index([capacity])
@@ -156,12 +157,34 @@ model BookingRequest {
   updatedAt           DateTime      @updatedAt @map("updated_at")
   expiresAt           DateTime?     @map("expires_at")
 
-  user User? @relation("UserRequests", fields: [userId], references: [id])
+  user           User?                @relation("UserRequests", fields: [userId], references: [id])
+  roomSelections EventRoomSelection[]
 
   @@index([userId])
   @@index([status])
   @@index([createdAt])
   @@map("booking_requests")
+}
+
+model EventRoomSelection {
+  id                String         @id @default(uuid())
+  bookingRequestId  String         @map("booking_request_id")
+  bookingRequest    BookingRequest @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+  roomId            String         @map("room_id")
+  room              Room           @relation(fields: [roomId], references: [id])
+  seatsSelected     Int            @map("seats_selected")
+  tvsSelected       Int            @default(0) @map("tvs_selected")
+  projectorNeeded   Boolean        @default(false) @map("projector_needed")
+  microphonesNeeded Int            @default(0) @map("microphones_needed")
+  wifiNeeded        Boolean        @default(false) @map("wifi_needed")
+  cateringNeeded    Boolean        @default(false) @map("catering_needed")
+  logisticsNotes    String?        @map("logistics_notes")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  @@unique([bookingRequestId, roomId])
+  @@index([bookingRequestId])
+  @@map("event_room_selections")
 }
 
 model AuditLog {

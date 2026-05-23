@@ -5,6 +5,7 @@ import { STATUS_COLORS, HIGHLIGHT_COLOR, type BuildingFloor, type BuildingRoom }
 interface Props {
   floor: BuildingFloor;
   highlightRoomIds?: string[];
+  cartRoomIds?: string[];
   activeRoomId?: string | null;
   onSelectRoom?: (room: BuildingRoom | null) => void;
 }
@@ -13,10 +14,12 @@ interface Props {
 export default function Building2D({
   floor,
   highlightRoomIds = [],
+  cartRoomIds = [],
   activeRoomId = null,
   onSelectRoom = () => {},
 }: Props) {
   const highlight = new Set(highlightRoomIds);
+  const cart = new Set(cartRoomIds);
   const PAD = 6;
   const SCALE = 14;
 
@@ -48,8 +51,13 @@ export default function Building2D({
         const ry = (r.coordinates_3d.z - r.dimensions.length_m / 2 - minZ) * SCALE + PAD;
         const rw = r.dimensions.width_m * SCALE;
         const rh = r.dimensions.length_m * SCALE;
-        const isHi = highlight.has(r.id);
-        const fill = isHi ? HIGHLIGHT_COLOR : STATUS_COLORS[r.availability_status];
+        const isCart = cart.has(r.id);
+        const isHi = highlight.has(r.id) && !isCart;
+        const fill = isCart
+          ? STATUS_COLORS.selected
+          : isHi
+          ? HIGHLIGHT_COLOR
+          : STATUS_COLORS[r.availability_status];
         const active = activeRoomId === r.id;
         return (
           <g
@@ -67,9 +75,9 @@ export default function Building2D({
               height={rh}
               rx={3}
               fill={fill}
-              fillOpacity={active || isHi ? 0.95 : 0.7}
-              stroke={active || isHi ? "#fff" : "#0f172a"}
-              strokeWidth={active || isHi ? 2 : 1}
+              fillOpacity={active || isHi || isCart ? 0.95 : 0.7}
+              stroke={active || isHi || isCart ? "#fff" : "#0f172a"}
+              strokeWidth={active || isHi || isCart ? 2 : 1}
             />
             <text
               x={rx + rw / 2}

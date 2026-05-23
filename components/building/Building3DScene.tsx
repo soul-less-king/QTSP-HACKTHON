@@ -9,12 +9,13 @@ import { STATUS_COLORS, HIGHLIGHT_COLOR, type BuildingFloor, type BuildingRoom }
 interface RoomMeshProps {
   room: BuildingRoom;
   highlighted: boolean;
+  inCart: boolean;
   active: boolean;
   onSelect: (room: BuildingRoom) => void;
   onHover: (room: BuildingRoom | null) => void;
 }
 
-function RoomMesh({ room, highlighted, active, onSelect, onHover }: RoomMeshProps) {
+function RoomMesh({ room, highlighted, inCart, active, onSelect, onHover }: RoomMeshProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -24,8 +25,12 @@ function RoomMesh({ room, highlighted, active, onSelect, onHover }: RoomMeshProp
   const x = room.coordinates_3d.x;
   const z = room.coordinates_3d.z;
 
-  const baseColor = highlighted ? HIGHLIGHT_COLOR : STATUS_COLORS[room.availability_status];
-  const emissive = active || hovered || highlighted;
+  const baseColor = inCart
+    ? STATUS_COLORS.selected
+    : highlighted
+    ? HIGHLIGHT_COLOR
+    : STATUS_COLORS[room.availability_status];
+  const emissive = active || hovered || highlighted || inCart;
 
   return (
     <group position={[x, h / 2, z]}>
@@ -77,13 +82,15 @@ function RoomMesh({ room, highlighted, active, onSelect, onHover }: RoomMeshProp
 interface SceneProps {
   rooms: BuildingRoom[];
   highlightRoomIds: string[];
+  cartRoomIds: string[];
   activeRoomId: string | null;
   onSelectRoom: (room: BuildingRoom | null) => void;
 }
 
-function FloorScene({ rooms, highlightRoomIds, activeRoomId, onSelectRoom }: SceneProps) {
+function FloorScene({ rooms, highlightRoomIds, cartRoomIds, activeRoomId, onSelectRoom }: SceneProps) {
   const [, setHovered] = useState<BuildingRoom | null>(null);
   const highlightSet = useMemo(() => new Set(highlightRoomIds), [highlightRoomIds]);
+  const cartSet = useMemo(() => new Set(cartRoomIds), [cartRoomIds]);
 
   return (
     <>
@@ -102,7 +109,8 @@ function FloorScene({ rooms, highlightRoomIds, activeRoomId, onSelectRoom }: Sce
         <RoomMesh
           key={room.id}
           room={room}
-          highlighted={highlightSet.has(room.id)}
+          highlighted={highlightSet.has(room.id) && !cartSet.has(room.id)}
+          inCart={cartSet.has(room.id)}
           active={activeRoomId === room.id}
           onSelect={onSelectRoom}
           onHover={setHovered}
@@ -118,6 +126,7 @@ function FloorScene({ rooms, highlightRoomIds, activeRoomId, onSelectRoom }: Sce
 interface Building3DSceneProps {
   floor: BuildingFloor;
   highlightRoomIds?: string[];
+  cartRoomIds?: string[];
   activeRoomId?: string | null;
   onSelectRoom?: (room: BuildingRoom | null) => void;
 }
@@ -125,6 +134,7 @@ interface Building3DSceneProps {
 export default function Building3DScene({
   floor,
   highlightRoomIds = [],
+  cartRoomIds = [],
   activeRoomId = null,
   onSelectRoom = () => {},
 }: Building3DSceneProps) {
@@ -140,6 +150,7 @@ export default function Building3DScene({
       <FloorScene
         rooms={floor.rooms}
         highlightRoomIds={highlightRoomIds}
+        cartRoomIds={cartRoomIds}
         activeRoomId={activeRoomId}
         onSelectRoom={onSelectRoom}
       />

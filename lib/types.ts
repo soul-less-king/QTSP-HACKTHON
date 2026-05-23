@@ -45,6 +45,23 @@ export interface RoomAttributes {
   sound_isolation?: string | boolean;
   outdoor_access?: boolean;
   av_equipment?: string | boolean;
+  tv_screens?: number;
+}
+
+export interface RoomLogistics {
+  seatsSelected: number;
+  tvsSelected: number;
+  projectorNeeded: boolean;
+  microphonesNeeded: number;
+  wifiNeeded: boolean;
+  cateringNeeded: boolean;
+  logisticsNotes: string;
+}
+
+export interface EventCartItem {
+  selectionId: string | null; // null until persisted to DB
+  room: RoomRecommendation;
+  logistics: RoomLogistics;
 }
 
 export interface Coordinates3D {

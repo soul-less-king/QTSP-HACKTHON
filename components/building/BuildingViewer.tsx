@@ -37,6 +37,7 @@ function hasWebGL(): boolean {
 interface Props {
   floors: BuildingFloor[];
   highlightRoomIds?: string[];
+  cartRoomIds?: string[];
   selectedDate?: string;
   onSelectRoom?: (room: BuildingRoom | null) => void;
   height?: string;
@@ -45,6 +46,7 @@ interface Props {
 export function BuildingViewer({
   floors,
   highlightRoomIds = [],
+  cartRoomIds = [],
   onSelectRoom,
   height = "h-[480px]",
 }: Props) {
@@ -55,15 +57,16 @@ export function BuildingViewer({
 
   useEffect(() => setWebgl(hasWebGL()), []);
 
-  // When a highlighted room exists, jump to its floor.
+  // When a highlighted or cart room exists, jump to its floor.
   useEffect(() => {
-    if (highlightRoomIds.length && floors.length) {
+    const allHighlighted = [...highlightRoomIds, ...cartRoomIds];
+    if (allHighlighted.length && floors.length) {
       const idx = floors.findIndex((f) =>
-        f.rooms.some((r) => highlightRoomIds.includes(r.id))
+        f.rooms.some((r) => allHighlighted.includes(r.id))
       );
       if (idx >= 0) setFloorIdx(idx);
     }
-  }, [highlightRoomIds, floors]);
+  }, [highlightRoomIds, cartRoomIds, floors]);
 
   const floor = floors[floorIdx];
 
@@ -77,8 +80,16 @@ export function BuildingViewer({
       { key: "available", color: STATUS_COLORS.available },
       { key: "reserved", color: STATUS_COLORS.reserved },
       { key: "maintenance", color: STATUS_COLORS.maintenance },
+      { key: "selected_status", color: STATUS_COLORS.selected },
     ],
     []
+  );
+
+  // Merge cartRoomIds into highlightRoomIds for the 3D/2D scene,
+  // but pass them separately so the scene can colour them differently.
+  const allHighlightIds = useMemo(
+    () => [...new Set([...highlightRoomIds, ...cartRoomIds])],
+    [highlightRoomIds, cartRoomIds]
   );
 
   if (!floor) {
@@ -124,7 +135,8 @@ export function BuildingViewer({
           ) : webgl ? (
             <Building3DScene
               floor={floor}
-              highlightRoomIds={highlightRoomIds}
+              highlightRoomIds={allHighlightIds}
+              cartRoomIds={cartRoomIds}
               activeRoomId={active?.id ?? null}
               onSelectRoom={handleSelect}
             />
@@ -136,7 +148,8 @@ export function BuildingViewer({
               <div className="flex-1">
                 <Building2D
                   floor={floor}
-                  highlightRoomIds={highlightRoomIds}
+                  highlightRoomIds={allHighlightIds}
+                  cartRoomIds={cartRoomIds}
                   activeRoomId={active?.id ?? null}
                   onSelectRoom={handleSelect}
                 />
