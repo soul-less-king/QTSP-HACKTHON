@@ -21,10 +21,10 @@ export interface BuildingFloor {
 }
 
 export const STATUS_COLORS: Record<string, string> = {
-  available: "#22c55e",
+  available: "#36b769", // QSTP green
   reserved: "#ef4444",
   maintenance: "#9ca3af",
   selected: "#6366f1", // indigo — room added to event cart
 };
 
-export const HIGHLIGHT_COLOR = "#06b6d4";
+export const HIGHLIGHT_COLOR = "#20abb1"; // QSTP teal — recommended room

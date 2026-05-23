@@ -2,9 +2,95 @@
 
 import { useRef, useState, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Html, Edges, ContactShadows, Environment } from "@react-three/drei";
+import { OrbitControls, Html, Edges, ContactShadows, Instances, Instance } from "@react-three/drei";
 import * as THREE from "three";
 import { STATUS_COLORS, HIGHLIGHT_COLOR, type BuildingFloor, type BuildingRoom } from "./types";
+
+// ---------------------------------------------------------------------------
+// Lightweight furniture: every chair/table on a floor is drawn with just a
+// few instanced meshes (3 draw calls total), regardless of room count.
+// Geometry is low-poly boxes and there are no per-object shadow maps.
+// ---------------------------------------------------------------------------
+
+type Vec3 = [number, number, number];
+interface TableInst {
+  pos: Vec3;
+  scale: Vec3;
+}
+
+function computeFurniture(rooms: BuildingRoom[]) {
+  const seats: Vec3[] = [];
+  const backs: Vec3[] = [];
+  const tables: TableInst[] = [];
+
+  for (const r of rooms) {
+    const x = r.coordinates_3d.x;
+    const z = r.coordinates_3d.z;
+    const w = Math.max(1, r.dimensions.width_m);
+    const l = Math.max(1, r.dimensions.length_m);
+
+    const tableW = Math.min(w * 0.4, 3);
+    const tableL = Math.min(l * 0.55, 4.4);
+    tables.push({ pos: [x, 0.37, z], scale: [tableW, 0.72, tableL] });
+
+    // Cap visible chairs so big rooms stay cheap and uncluttered.
+    const n = Math.min(r.capacity, 10);
+    const perRow = Math.ceil(n / 2);
+    const rowXOff = tableW / 2 + 0.42;
+    let placed = 0;
+
+    for (let row = 0; row < 2 && placed < n; row++) {
+      const sideX = row === 0 ? -rowXOff : rowXOff;
+      const cnt = Math.min(perRow, n - placed);
+      for (let i = 0; i < cnt; i++) {
+        const t = cnt === 1 ? 0.5 : i / (cnt - 1);
+        const cz = z + (t - 0.5) * tableL * 0.82;
+        const cx = x + sideX;
+        seats.push([cx, 0.24, cz]);
+        backs.push([cx + (row === 0 ? -0.2 : 0.2), 0.52, cz]);
+        placed++;
+      }
+    }
+  }
+
+  return { seats, backs, tables };
+}
+
+function Furniture({ rooms }: { rooms: BuildingRoom[] }) {
+  const { seats, backs, tables } = useMemo(() => computeFurniture(rooms), [rooms]);
+
+  return (
+    <group>
+      {tables.length > 0 && (
+        <Instances limit={tables.length} range={tables.length}>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshStandardMaterial color="#b0896b" roughness={0.75} />
+          {tables.map((tbl, i) => (
+            <Instance key={i} position={tbl.pos} scale={tbl.scale} />
+          ))}
+        </Instances>
+      )}
+      {seats.length > 0 && (
+        <Instances limit={seats.length} range={seats.length}>
+          <boxGeometry args={[0.42, 0.46, 0.42]} />
+          <meshStandardMaterial color="#475569" roughness={0.6} />
+          {seats.map((p, i) => (
+            <Instance key={i} position={p} />
+          ))}
+        </Instances>
+      )}
+      {backs.length > 0 && (
+        <Instances limit={backs.length} range={backs.length}>
+          <boxGeometry args={[0.08, 0.5, 0.42]} />
+          <meshStandardMaterial color="#334155" roughness={0.6} />
+          {backs.map((p, i) => (
+            <Instance key={i} position={p} />
+          ))}
+        </Instances>
+      )}
+    </group>
+  );
+}
 
 interface RoomMeshProps {
   room: BuildingRoom;
@@ -30,12 +116,25 @@ function RoomMesh({ room, highlighted, inCart, active, onSelect, onHover }: Room
     : highlighted
     ? HIGHLIGHT_COLOR
     : STATUS_COLORS[room.availability_status];
-  const emissive = active || hovered || highlighted || inCart;
+  const emphasized = active || hovered || highlighted || inCart;
 
   return (
-    <group position={[x, h / 2, z]}>
+    <group position={[x, 0, z]}>
+      {/* Colored floor tile — keeps room status readable from any angle */}
+      <mesh position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[w - 0.15, l - 0.15]} />
+        <meshStandardMaterial
+          color={baseColor}
+          transparent
+          opacity={emphasized ? 0.95 : 0.82}
+          roughness={0.65}
+        />
+      </mesh>
+
+      {/* Glass volume — the interactive target; furniture shows through it */}
       <mesh
         ref={meshRef}
+        position={[0, h / 2, 0]}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(room);
@@ -49,24 +148,23 @@ function RoomMesh({ room, highlighted, inCart, active, onSelect, onHover }: Room
           setHovered(false);
           onHover(null);
         }}
-        scale={hovered ? 1.04 : 1}
-        castShadow
+        scale={hovered ? 1.02 : 1}
       >
         <boxGeometry args={[w, h, l]} />
         <meshStandardMaterial
           color={baseColor}
           transparent
-          opacity={emissive ? 0.92 : 0.72}
+          opacity={emphasized ? 0.26 : 0.12}
           emissive={baseColor}
-          emissiveIntensity={emissive ? 0.4 : 0.08}
-          roughness={0.35}
-          metalness={0.1}
+          emissiveIntensity={emphasized ? 0.35 : 0.04}
+          roughness={0.2}
+          depthWrite={false}
         />
-        <Edges threshold={15} color={active || highlighted ? "#ffffff" : "#1e293b"} />
+        <Edges threshold={15} color={emphasized ? "#ffffff" : "#334155"} />
       </mesh>
 
       {(hovered || active) && (
-        <Html center distanceFactor={40} position={[0, h / 2 + 1.5, 0]} zIndexRange={[20, 0]}>
+        <Html center distanceFactor={40} position={[0, h + 1.2, 0]} zIndexRange={[20, 0]}>
           <div className="pointer-events-none whitespace-nowrap rounded-lg bg-slate-900/95 px-2.5 py-1.5 text-xs text-white shadow-lg">
             <div className="font-semibold">{room.name}</div>
             <div className="text-slate-300">
@@ -94,16 +192,17 @@ function FloorScene({ rooms, highlightRoomIds, cartRoomIds, activeRoomId, onSele
 
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[20, 30, 20]} intensity={1.1} castShadow />
-      <directionalLight position={[-20, 20, -10]} intensity={0.3} />
+      {/* Lightweight lighting — no HDRI environment map */}
+      <ambientLight intensity={0.75} />
+      <hemisphereLight args={["#ffffff", "#cbd5e1", 0.65]} />
+      <directionalLight position={[18, 28, 16]} intensity={0.7} />
 
-      {/* Floor slab */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
+      {/* Floor + grid */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[48, 40]} />
-        <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
+        <meshStandardMaterial color="#eef2f6" roughness={0.95} />
       </mesh>
-      <gridHelper args={[48, 24, "#cbd5e1", "#e2e8f0"]} position={[0, 0, 0]} />
+      <gridHelper args={[48, 24, "#cbd5e1", "#e2e8f0"]} position={[0, 0.01, 0]} />
 
       {rooms.map((room) => (
         <RoomMesh
@@ -117,8 +216,18 @@ function FloorScene({ rooms, highlightRoomIds, cartRoomIds, activeRoomId, onSele
         />
       ))}
 
-      <ContactShadows position={[0, 0.01, 0]} opacity={0.35} scale={50} blur={2} far={10} />
-      <Environment preset="city" />
+      <Furniture rooms={rooms} />
+
+      {/* Static (single-frame) contact shadow — grounds the scene cheaply */}
+      <ContactShadows
+        frames={1}
+        position={[0, 0.02, 0]}
+        opacity={0.3}
+        scale={50}
+        blur={2.5}
+        far={9}
+        resolution={256}
+      />
     </>
   );
 }
@@ -140,8 +249,7 @@ export default function Building3DScene({
 }: Building3DSceneProps) {
   return (
     <Canvas
-      shadows
-      dpr={[1, 2]}
+      dpr={[1, 1.75]}
       camera={{ position: [22, 20, 24], fov: 42 }}
       performance={{ min: 0.5 }}
       onPointerMissed={() => onSelectRoom(null)}

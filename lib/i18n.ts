@@ -12,6 +12,7 @@ const en: Dict = {
   tagline: "Intelligent Room Booking for QSTP",
   // common
   loading: "Loading...",
+  preparing_workspace: "Preparing your workspace…",
   cancel: "Cancel",
   confirm: "Confirm",
   submit: "Submit",
@@ -193,6 +194,7 @@ const ar: Dict = {
   app_name: "أكسِس",
   tagline: "حجز ذكي للقاعات في واحة قطر للعلوم والتكنولوجيا",
   loading: "جارٍ التحميل...",
+  preparing_workspace: "جارٍ تجهيز مساحة العمل…",
   cancel: "إلغاء",
   confirm: "تأكيد",
   submit: "إرسال",
