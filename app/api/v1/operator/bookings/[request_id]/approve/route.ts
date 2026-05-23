@@ -23,40 +23,90 @@ export async function POST(
 
   const request = await prisma.bookingRequest.findUnique({
     where: { id: params.request_id },
+    include: { roomSelections: { include: { room: true } } },
   });
   if (!request) return notFound("Booking request not found");
   if (request.status === "approved") return badRequest("Request already approved");
-
-  const roomId = request.userSelectedRoomId || request.recommendedRoomId;
-  if (!roomId || !request.bookingDate || !request.startTime || !request.endTime) {
-    return badRequest("Request is missing room or schedule details");
-  }
   if (!request.userId) {
     return badRequest("External requests must be assigned to a user before approval");
   }
+  if (!request.bookingDate || !request.startTime || !request.endTime) {
+    return badRequest("Request is missing schedule details");
+  }
+
+  // Determine rooms to approve: multi-room selections take priority over legacy single room.
+  const hasMultiRoom = request.roomSelections.length > 0;
+  const legacyRoomId = request.userSelectedRoomId || request.recommendedRoomId;
+
+  if (!hasMultiRoom && !legacyRoomId) {
+    return badRequest("No rooms are associated with this request");
+  }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.create({
-        data: {
-          userId: request.userId!,
-          roomId,
-          bookingDate: request.bookingDate!,
-          startTime: request.startTime!,
-          endTime: request.endTime!,
-          capacityNeeded: request.capacityNeeded ?? 1,
-          eventTitle: request.eventTitle,
-          eventType: (request.extractedJson as any)?.event_type ?? null,
-          organizerName: request.organizerName,
-          organizerPhone: request.organizerPhone,
-          specialRequirements: request.specialRequirements,
-          status: "approved",
-          approvalNotes: body.operator_notes ?? null,
-          cateringNotes: body.catering_notes ?? null,
-          operatorId: session.id,
-          approvedAt: new Date(),
-        },
-      });
+    const bookingIds = await prisma.$transaction(async (tx) => {
+      const created: string[] = [];
+
+      if (hasMultiRoom) {
+        // Create one Booking per room selection with per-room logistics encoded in notes.
+        for (const sel of request.roomSelections) {
+          const logisticsSummary = [
+            `Seats: ${sel.seatsSelected}`,
+            sel.tvsSelected > 0 ? `TVs: ${sel.tvsSelected}` : null,
+            sel.projectorNeeded ? "Projector needed" : null,
+            sel.microphonesNeeded > 0 ? `Microphones: ${sel.microphonesNeeded}` : null,
+            sel.wifiNeeded ? "WiFi needed" : null,
+            sel.cateringNeeded ? "Catering needed" : null,
+            sel.logisticsNotes || null,
+          ]
+            .filter(Boolean)
+            .join(" | ");
+
+          const booking = await tx.booking.create({
+            data: {
+              userId: request.userId!,
+              roomId: sel.roomId,
+              bookingDate: request.bookingDate!,
+              startTime: request.startTime!,
+              endTime: request.endTime!,
+              capacityNeeded: sel.seatsSelected,
+              eventTitle: request.eventTitle,
+              eventType: (request.extractedJson as any)?.event_type ?? null,
+              organizerName: request.organizerName,
+              organizerPhone: request.organizerPhone,
+              specialRequirements: logisticsSummary || request.specialRequirements,
+              status: "approved",
+              approvalNotes: body.operator_notes ?? null,
+              cateringNotes: body.catering_notes ?? null,
+              operatorId: session.id,
+              approvedAt: new Date(),
+            },
+          });
+          created.push(booking.id);
+        }
+      } else {
+        // Legacy single-room path.
+        const booking = await tx.booking.create({
+          data: {
+            userId: request.userId!,
+            roomId: legacyRoomId!,
+            bookingDate: request.bookingDate!,
+            startTime: request.startTime!,
+            endTime: request.endTime!,
+            capacityNeeded: request.capacityNeeded ?? 1,
+            eventTitle: request.eventTitle,
+            eventType: (request.extractedJson as any)?.event_type ?? null,
+            organizerName: request.organizerName,
+            organizerPhone: request.organizerPhone,
+            specialRequirements: request.specialRequirements,
+            status: "approved",
+            approvalNotes: body.operator_notes ?? null,
+            cateringNotes: body.catering_notes ?? null,
+            operatorId: session.id,
+            approvedAt: new Date(),
+          },
+        });
+        created.push(booking.id);
+      }
 
       await tx.bookingRequest.update({
         where: { id: request.id },
@@ -75,7 +125,7 @@ export async function POST(
           action: "booking_approved",
           resourceType: "booking_request",
           resourceId: request.id,
-          changes: { booking_id: booking.id, room_id: roomId },
+          changes: { booking_ids: created, rooms_count: created.length },
         },
       });
 
@@ -83,26 +133,26 @@ export async function POST(
         data: {
           userId: request.userId!,
           type: "booking_approved",
-          title: "Your booking was approved",
-          message: `Booking for ${request.bookingDate} at ${request.startTime} is confirmed.`,
-          relatedBookingId: booking.id,
+          title: "Your event booking was approved",
+          message: `Your event on ${request.bookingDate} at ${request.startTime} (${created.length} room(s)) is confirmed.`,
+          relatedBookingId: created[0],
         },
       });
 
-      return booking;
+      return created;
     });
 
     return ok({
       request_id: request.id,
       status: "approved",
-      booking_id: result.id,
-      room_id: roomId,
-      approved_at: result.approvedAt,
+      booking_ids: bookingIds,
+      rooms_approved: bookingIds.length,
+      approved_at: new Date(),
       approved_by: session.email,
     });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      return apiError(409, "That room is already booked for the requested time slot.");
+      return apiError(409, "One or more rooms are already booked for the requested time slot.");
     }
     throw err;
   }

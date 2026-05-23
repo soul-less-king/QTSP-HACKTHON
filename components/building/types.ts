@@ -24,6 +24,7 @@ export const STATUS_COLORS: Record<string, string> = {
   available: "#22c55e",
   reserved: "#ef4444",
   maintenance: "#9ca3af",
+  selected: "#6366f1", // indigo — room added to event cart
 };
 
 export const HIGHLIGHT_COLOR = "#06b6d4";

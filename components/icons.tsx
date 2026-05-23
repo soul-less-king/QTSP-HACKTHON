@@ -114,3 +114,35 @@ export const IconEdit = (p: P) => (
     <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
   </svg>
 );
+export const IconPlus = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+export const IconMinus = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M5 12h14" />
+  </svg>
+);
+export const IconTrash = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+  </svg>
+);
+export const IconSliders = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" />
+    <path d="M1 14h6M9 8h6M17 16h6" />
+  </svg>
+);
+export const IconCart = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+    <path d="M3 6h18M16 10a4 4 0 0 1-8 0" />
+  </svg>
+);
+export const IconArrowRight = (p: P) => (
+  <svg {...base} {...p}>
+    <path d="M5 12h14M12 5l7 7-7 7" />
+  </svg>
+);
