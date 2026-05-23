@@ -73,7 +73,7 @@ export async function extractBooking(
     return mockExtract(message, language);
   }
 
-  const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-sonnet";
+  const model = process.env.OPENROUTER_MODEL || "anthropic/claude-3.5-haiku";
   const today = new Date().toISOString().slice(0, 10);
 
   try {
