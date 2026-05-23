@@ -6,7 +6,6 @@ import { useState } from "react";
 import { useI18n, useTheme } from "./Providers";
 import { useAuth } from "@/lib/store";
 import {
-  IconLogo,
   IconGlobe,
   IconSun,
   IconMoon,
@@ -44,7 +43,12 @@ export function NavBar() {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4">
         <Link href="/book" className="flex items-center gap-2 font-bold text-brand-600 dark:text-brand-400">
-          <IconLogo className="h-7 w-7" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="QSTP"
+            className="h-8 w-8 rounded-lg bg-white object-contain p-0.5 ring-1 ring-slate-200 dark:ring-slate-700"
+          />
           <span className="text-lg">{t("app_name")}</span>
         </Link>
 

@@ -3,12 +3,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { NavBar } from "@/components/NavBar";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { useAuth } from "@/lib/store";
-import { useI18n } from "@/components/Providers";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, fetchUser } = useAuth();
-  const { t } = useI18n();
   const router = useRouter();
 
   useEffect(() => {
@@ -19,13 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchUser, router]);
 
-  if (loading && !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-slate-400">
-        <span className="animate-pulse-soft">{t("loading")}</span>
-      </div>
-    );
-  }
+  if (loading && !user) return <LoadingScreen />;
   if (!user) return null;
 
   return (

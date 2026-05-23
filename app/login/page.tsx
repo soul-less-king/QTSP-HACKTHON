@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useI18n, useTheme } from "@/components/Providers";
 import { useAuth } from "@/lib/store";
 import { apiFetch } from "@/lib/client";
-import { IconLogo, IconGlobe, IconSun, IconMoon, IconSparkles } from "@/components/icons";
+import { IconGlobe, IconSun, IconMoon, IconSparkles } from "@/components/icons";
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 const DEMO = [
   { email: "user@qstp.qa", role: "user" },
@@ -22,6 +23,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
     // If already signed in, skip the login page.
@@ -45,7 +47,9 @@ export default function LoginPage() {
         role: data.user.role,
         fullName: data.user.fullName,
       });
-      router.push(data.user.role === "operator" ? "/operator" : "/book");
+      setRedirecting(true);
+      const dest = data.user.role === "operator" ? "/operator" : "/book";
+      setTimeout(() => router.push(dest), 1000);
     } catch (err: any) {
       setError(err?.status === 401 ? t("invalid_credentials") : t("login_error"));
     } finally {
@@ -57,6 +61,8 @@ export default function LoginPage() {
     setEmail(demoEmail);
     setPassword("Passw0rd!");
   }
+
+  if (redirecting) return <LoadingScreen />;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4 dark:bg-slate-950">
@@ -78,8 +84,9 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-md animate-fade-in">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
-            <IconLogo className="h-9 w-9" />
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2.5 shadow-lg shadow-brand-600/20 ring-1 ring-slate-200">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="QSTP" className="h-full w-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">{t("app_name")}</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t("tagline")}</p>
