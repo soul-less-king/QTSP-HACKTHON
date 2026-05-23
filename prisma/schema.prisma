@@ -1,0 +1,195 @@
+// Axis Event Management System — Prisma schema (PostgreSQL)
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  operator
+  admin
+}
+
+enum RoomStatus {
+  active
+  maintenance
+}
+
+enum BookingStatus {
+  approved
+  cancelled
+}
+
+enum RequestType {
+  chat
+  email
+}
+
+enum RequestStatus {
+  draft
+  pending_approval
+  submitted_to_operator
+  approved
+  rejected
+  expired
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  fullName      String    @map("full_name")
+  phone         String?
+  role          UserRole  @default(user)
+  isActive      Boolean   @default(true) @map("is_active")
+  emailVerified Boolean   @default(false) @map("email_verified")
+  lastLogin     DateTime? @map("last_login")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  bookings        Booking[]        @relation("UserBookings")
+  approvedBookings Booking[]       @relation("OperatorBookings")
+  bookingRequests BookingRequest[] @relation("UserRequests")
+  notifications   Notification[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Room {
+  id                      String     @id @default(uuid())
+  name                    String
+  description             String?
+  capacity                Int
+  floorNumber             Int        @map("floor_number")
+  locationDesc            String?    @map("location_desc")
+  imageUrl                String?    @map("image_url")
+  coordinates3d           Json       @map("coordinates_3d")
+  dimensions              Json
+  attributes              Json
+  status                  RoomStatus @default(active)
+  lastMaintenance         DateTime?  @map("last_maintenance")
+  maintenanceFrequencyDays Int       @default(90) @map("maintenance_frequency_days")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  bookings Booking[]
+
+  @@index([floorNumber])
+  @@index([capacity])
+  @@index([status])
+  @@map("rooms")
+}
+
+model Booking {
+  id                 String        @id @default(uuid())
+  userId             String        @map("user_id")
+  roomId             String        @map("room_id")
+  bookingDate        String        @map("booking_date") // YYYY-MM-DD
+  startTime          String        @map("start_time")   // HH:MM (24h)
+  endTime            String        @map("end_time")      // HH:MM (24h)
+  capacityNeeded     Int           @map("capacity_needed")
+  eventTitle         String?       @map("event_title")
+  eventType          String?       @map("event_type")
+  organizerName      String?       @map("organizer_name")
+  organizerPhone     String?       @map("organizer_phone")
+  specialRequirements String?      @map("special_requirements")
+  status             BookingStatus @default(approved)
+  approvalNotes      String?       @map("approval_notes")
+  cateringNotes      String?       @map("catering_notes")
+  operatorId         String?       @map("operator_id")
+  approvedAt         DateTime?     @map("approved_at")
+  cancelledAt        DateTime?     @map("cancelled_at")
+  cancellationReason String?       @map("cancellation_reason")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  user     User  @relation("UserBookings", fields: [userId], references: [id])
+  room     Room  @relation(fields: [roomId], references: [id])
+  operator User? @relation("OperatorBookings", fields: [operatorId], references: [id])
+
+  @@unique([roomId, bookingDate, startTime])
+  @@index([userId])
+  @@index([roomId])
+  @@index([bookingDate])
+  @@index([status])
+  @@map("bookings")
+}
+
+model BookingRequest {
+  id                  String        @id @default(uuid())
+  userId              String?       @map("user_id")
+  emailFrom           String?       @map("email_from")
+  requestType         RequestType   @default(chat) @map("request_type")
+  rawMessage          String?       @map("raw_message")
+  language            String        @default("en")
+  extractedJson       Json          @map("extracted_json")
+  llmConfidenceScore  Float?        @map("llm_confidence_score")
+  recommendedRoomId   String?       @map("recommended_room_id")
+  recommendedRooms    Json?         @map("recommended_rooms")
+  userSelectedRoomId  String?       @map("user_selected_room_id")
+  // Denormalized submission details
+  bookingDate         String?       @map("booking_date")
+  startTime           String?       @map("start_time")
+  endTime             String?       @map("end_time")
+  capacityNeeded      Int?          @map("capacity_needed")
+  eventTitle          String?       @map("event_title")
+  organizerName       String?       @map("organizer_name")
+  organizerPhone      String?       @map("organizer_phone")
+  specialRequirements String?       @map("special_requirements")
+  status              RequestStatus @default(pending_approval)
+  rejectionReason     String?       @map("rejection_reason")
+  operatorNotes       String?       @map("operator_notes")
+  cateringNotes       String?       @map("catering_notes")
+  matchScore          Int?          @map("match_score")
+  submittedToOperatorAt DateTime?   @map("submitted_to_operator_at")
+  operatorId          String?       @map("operator_id")
+  approvedAt          DateTime?     @map("approved_at")
+  rejectedAt          DateTime?     @map("rejected_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  expiresAt           DateTime?     @map("expires_at")
+
+  user User? @relation("UserRequests", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("booking_requests")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String   @map("actor_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  changes      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@map("audit_log")
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  type            String
+  title           String
+  message         String
+  relatedBookingId String? @map("related_booking_id")
+  isRead          Boolean  @default(false) @map("is_read")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
